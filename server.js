@@ -1,66 +1,54 @@
-const http = require('http');
-const { Server } = require('socket.io');
+const http = require("http");
+const { Server } = require("socket.io");
 
 const server = http.createServer();
 
 const io = new Server(server, {
     cors: {
-        origin: '*'
+        origin: "*"
     }
 });
 
 const players = {};
 
-io.on('connection', (socket) => {
+io.on("connection", (socket) => {
 
-    console.log('Connected:', socket.id);
+    console.log("Player connected:", socket.id);
 
-    socket.on('initialize', () => {
+    // send existing players to new player
+    socket.emit("currentPlayers", players);
 
-        players[socket.id] = {
-            x: 0,
-            y: 0,
-            z: 0
-        };
+    // add new player
+    players[socket.id] = { x: 0, y: 0, z: 0 };
 
-        socket.emit('playerData', {
-            id: socket.id,
-            players: players
-        });
-
-        socket.broadcast.emit('playerJoined', {
-            id: socket.id
-        });
-
-        console.log('Initialized:', socket.id);
+    // tell others
+    socket.broadcast.emit("newPlayer", {
+        id: socket.id,
+        data: players[socket.id]
     });
 
-    socket.on('positionUpdate', (data) => {
+    // movement
+    socket.on("move", (data) => {
+        if (!players[socket.id]) return;
 
-        players[socket.id] = {
-            x: data.x,
-            y: data.y,
-            z: data.z
-        };
+        players[socket.id] = data;
 
-        socket.broadcast.emit('playerMoved', {
+        socket.broadcast.emit("playerMoved", {
             id: socket.id,
-            position: players[socket.id]
+            data
         });
     });
 
-    socket.on('disconnect', () => {
-
-        console.log('Disconnected:', socket.id);
+    // disconnect
+    socket.on("disconnect", () => {
+        console.log("Player left:", socket.id);
 
         delete players[socket.id];
 
-        io.emit('playerLeft', {
-            id: socket.id
-        });
+        io.emit("removePlayer", socket.id);
     });
 });
 
 server.listen(process.env.PORT || 3000, () => {
-    console.log('Server running!');
+    console.log("Server running");
 });
